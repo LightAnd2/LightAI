@@ -83,6 +83,7 @@ export default function Explore() {
   const [results, setResults] = useState([])
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
+  const [slowLoad, setSlowLoad] = useState(false)
   const [offline, setOffline] = useState(false)
   const [monitorState, setMonitorState] = useState({})
 
@@ -106,10 +107,14 @@ export default function Explore() {
 
   useEffect(() => {
     setLoading(true)
+    // If the backend is cold it can take ~50s to wake. Explain the wait after a
+    // few seconds so visitors don't assume the site is broken and leave.
+    const slowTimer = setTimeout(() => setSlowLoad(true), 4000)
     api.getDirectory({ category: activeCat, search, auth: authFilter, limit: 80 })
       .then((d) => { setResults(d.results); setTotal(d.total); setOffline(false) })
       .catch(() => setOffline(true))
-      .finally(() => setLoading(false))
+      .finally(() => { setLoading(false); setSlowLoad(false); clearTimeout(slowTimer) })
+    return () => clearTimeout(slowTimer)
   }, [activeCat, search, authFilter])
 
   const onMonitor = useCallback(async (item) => {
@@ -221,10 +226,17 @@ export default function Explore() {
           {offline ? (
             <p className="text-sm text-gray-500 py-16 text-center font-mono">directory unreachable — backend offline</p>
           ) : loading ? (
-            <div className="divide-y divide-border/60">
-              {Array.from({ length: 12 }).map((_, i) => (
-                <div key={i} className="h-11 flex items-center"><div className="h-3 bg-gray-100 rounded w-1/3 animate-pulse" /></div>
-              ))}
+            <div>
+              <div className="flex items-center gap-2 py-3 font-mono text-xs text-gray-400">
+                <span className="w-1.5 h-1.5 rounded-full bg-msu-green animate-pulse shrink-0" />
+                <span className="text-gray-500">loading apis…</span>
+                {slowLoad && <span>waking the server, this can take up to a minute on first load</span>}
+              </div>
+              <div className="divide-y divide-border/60">
+                {Array.from({ length: 12 }).map((_, i) => (
+                  <div key={i} className="h-11 flex items-center"><div className="h-3 bg-gray-100 rounded w-1/3 animate-pulse" /></div>
+                ))}
+              </div>
             </div>
           ) : results.length === 0 ? (
             <p className="text-sm text-gray-500 py-16 text-center font-mono">no matches</p>
